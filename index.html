@@ -1,168 +1,59 @@
+
+You said:
 <!DOCTYPE html>
 <html>
 <head>
   <title>QR JSON Scanner</title>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-
   <style>
     body {
-      margin: 0;
       font-family: Arial;
       background: #0f172a;
       color: white;
       text-align: center;
-    }
-
-    h2 {
-      padding-top: 20px;
+      padding: 20px;
     }
 
     #reader {
       width: 350px;
-      margin: 20px auto;
+      margin: auto;
       border-radius: 12px;
       overflow: hidden;
     }
 
     #output {
-      margin: 20px auto;
+      margin-top: 20px;
       background: #1e293b;
       padding: 15px;
       border-radius: 10px;
       text-align: left;
       max-width: 500px;
+      margin-inline: auto;
       white-space: pre-wrap;
-      display: none;
     }
-
-    /* PRODUCT CARD */
-    #productCard {
-      display: none;
-      max-width: 500px;
-      margin: auto;
-      background: #1e293b;
-      padding: 18px;
-      border-radius: 12px;
-      text-align: left;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-    }
-
-    .row {
-      margin: 8px 0;
-    }
-
-    .label {
-      color: #94a3b8;
-      font-size: 14px;
-    }
-
-    .value {
-      font-weight: bold;
-    }
-
-    /* SLIDE UP PANEL */
-    #bottomSheet {
-      position: fixed;
-      left: 0;
-      bottom: -200px;
-      width: 100%;
-      background: #111827;
-      border-top-left-radius: 20px;
-      border-top-right-radius: 20px;
-      box-shadow: 0 -10px 20px rgba(0,0,0,0.4);
-      transition: bottom 0.4s ease;
-      padding: 20px;
-    }
-
-    #bottomSheet.show {
-      bottom: 0;
-    }
-
-    .status-btn {
-      background: #22c55e;
-      color: white;
-      border: none;
-      padding: 14px 20px;
-      border-radius: 10px;
-      font-size: 16px;
-      cursor: pointer;
-      width: 90%;
-      max-width: 400px;
-    }
-
-    .status-btn:hover {
-      background: #16a34a;
-    }
-
-    #statusText {
-      margin-top: 10px;
-      font-size: 14px;
-      color: #94a3b8;
-    }
-
   </style>
 </head>
-
 <body>
 
   <h2>📦 Scan Product QR</h2>
 
   <div id="reader"></div>
 
-  <!-- Product Card -->
-  <div id="productCard">
-    <div class="row"><span class="label">Order ID:</span> <span class="value" id="orderId"></span></div>
-    <div class="row"><span class="label">Product:</span> <span class="value" id="productId"></span></div>
-    <div class="row"><span class="label">User:</span> <span class="value" id="userId"></span></div>
-    <div class="row"><span class="label">Timestamp:</span> <span class="value" id="timestamp"></span></div>
-  </div>
-
-  <!-- Bottom Sliding Panel -->
-  <div id="bottomSheet">
-    <button class="status-btn" onclick="markDelivered()">
-      ✅ Order Delivered
-    </button>
-    <div id="statusText">Waiting confirmation...</div>
-  </div>
+  <h3>Scanned JSON</h3>
+  <div id="output">Waiting for scan...</div>
 
   <script>
-    let scannedData = null;
-
     function onScanSuccess(decodedText) {
       try {
-        scannedData = JSON.parse(decodedText);
+        const jsonData = JSON.parse(decodedText);
 
-        // Fill card
-        document.getElementById("orderId").innerText = scannedData.orderId || "-";
-        document.getElementById("productId").innerText = scannedData.productId || "-";
-        document.getElementById("userId").innerText = scannedData.userId || "-";
-        document.getElementById("timestamp").innerText = scannedData.timestamp || "-";
-
-        document.getElementById("productCard").style.display = "block";
-
-        // Show bottom sheet
-        document.getElementById("bottomSheet").classList.add("show");
-
-        // Stop scanning after first successful scan
-        html5QrCode.stop();
+        document.getElementById("output").innerText =
+          JSON.stringify(jsonData, null, 2);
 
       } catch (err) {
-        alert("⚠ QR does not contain valid JSON");
+        document.getElementById("output").innerText =
+          "⚠️ QR does not contain valid JSON:\n" + decodedText;
       }
-    }
-
-    function markDelivered() {
-      document.getElementById("statusText").innerText =
-        "🎉 Order marked as delivered!";
-
-      // Example backend call:
-      /*
-      fetch('/order-delivered', {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify(scannedData)
-      });
-      */
     }
 
     const html5QrCode = new Html5Qrcode("reader");
