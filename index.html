@@ -1,68 +1,172 @@
-
-You said:
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>QR JSON Scanner</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vector | Logistics Scanner</title>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --accent: #38bdf8;
+      --success: #22c55e;
+    }
+
     body {
-      font-family: Arial;
-      background: #0f172a;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
       color: white;
-      text-align: center;
+      margin: 0;
       padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
+    /* Scanner Styling */
     #reader {
-      width: 350px;
-      margin: auto;
-      border-radius: 12px;
+      width: 100%;
+      max-width: 400px;
+      border-radius: 16px;
       overflow: hidden;
+      border: 2px solid var(--card);
+      margin-bottom: 20px;
     }
 
-    #output {
-      margin-top: 20px;
-      background: #1e293b;
-      padding: 15px;
-      border-radius: 10px;
-      text-align: left;
-      max-width: 500px;
-      margin-inline: auto;
-      white-space: pre-wrap;
+    /* Results Card */
+    #details-card {
+      display: none; /* Hidden until scan */
+      background: var(--card);
+      width: 100%;
+      max-width: 400px;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      animation: fadeIn 0.5s ease;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #334155;
+      padding-bottom: 8px;
+    }
+
+    .label { color: #94a3b8; font-size: 0.85rem; text-transform: uppercase; }
+    .val { font-weight: 600; font-size: 0.95rem; }
+
+    .status-badge {
+      background: var(--success);
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+    }
+
+    /* Sliding Window (Bottom Sheet) */
+    #bottom-sheet {
+      position: fixed;
+      bottom: -100%;
+      left: 0;
+      right: 0;
+      background: var(--success);
+      color: white;
+      padding: 30px;
+      text-align: center;
+      border-top-left-radius: 24px;
+      border-top-right-radius: 24px;
+      transition: bottom 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: 100;
+    }
+
+    #bottom-sheet.active { bottom: 0; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
 <body>
 
-  <h2>📦 Scan Product QR</h2>
+  <h2 style="margin-bottom: 10px;">📦 Product Scanner</h2>
+  <p style="color: #94a3b8; margin-bottom: 20px;">Align QR code within the frame</p>
 
   <div id="reader"></div>
 
-  <h3>Scanned JSON</h3>
-  <div id="output">Waiting for scan...</div>
+  <div id="details-card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h3 style="margin: 0;">Return Details</h3>
+      <span class="status-badge" id="res-status"></span>
+    </div>
+
+    <div class="row">
+      <span class="label">Return ID</span>
+      <span class="val" id="res-id"></span>
+    </div>
+    <div class="row">
+      <span class="label">Method</span>
+      <span class="val" id="res-method"></span>
+    </div>
+    <div class="row">
+      <span class="label">Approved By</span>
+      <span class="val" id="res-admin"></span>
+    </div>
+    <div class="row" style="border: none;">
+      <span class="label">Date</span>
+      <span class="val" id="res-date"></span>
+    </div>
+  </div>
+
+  <div id="bottom-sheet">
+    <div style="font-size: 2rem; margin-bottom: 10px;">✅</div>
+    <h2 style="margin: 0;">Order Picked Up</h2>
+    <p>The return record has been updated successfully.</p>
+    <button onclick="resetScanner()" style="background: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; margin-top: 10px; cursor: pointer;">Scan Next</button>
+  </div>
 
   <script>
     function onScanSuccess(decodedText) {
       try {
-        const jsonData = JSON.parse(decodedText);
+        const data = JSON.parse(decodedText);
+        
+        // Stop scanner to focus on UI
+        html5QrCode.stop();
 
-        document.getElementById("output").innerText =
-          JSON.stringify(jsonData, null, 2);
+        // Populate UI
+        document.getElementById("res-id").innerText = data.returnId.substring(0, 12) + "...";
+        document.getElementById("res-status").innerText = data.status.toUpperCase();
+        document.getElementById("res-method").innerText = data.returnMethod;
+        document.getElementById("res-admin").innerText = data.approvedBy;
+        document.getElementById("res-date").innerText = new Date(data.approvedAt).toLocaleDateString();
+
+        // Show card and slide-up window
+        document.getElementById("details-card").style.display = "block";
+        setTimeout(() => {
+          document.getElementById("bottom-sheet").classList.add("active");
+        }, 500);
 
       } catch (err) {
-        document.getElementById("output").innerText =
-          "⚠️ QR does not contain valid JSON:\n" + decodedText;
+        console.error("Not a valid JSON QR", err);
       }
     }
 
     const html5QrCode = new Html5Qrcode("reader");
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-    html5QrCode.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 250 },
-      onScanSuccess
-    );
+    function startScanner() {
+        html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess);
+    }
+
+    function resetScanner() {
+        document.getElementById("bottom-sheet").classList.remove("active");
+        document.getElementById("details-card").style.display = "none";
+        startScanner();
+    }
+
+    startScanner();
   </script>
 
 </body>
