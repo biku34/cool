@@ -4,17 +4,28 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vector | Logistics Scanner</title>
+  
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+  
+  <script type="text/javascript">
+    (function(){
+      // Replace with your Public Key from EmailJS Account tab
+      emailjs.init("YOUR_PUBLIC_KEY"); 
+    })();
+  </script>
+
   <style>
     :root {
       --bg: #0f172a;
       --card: #1e293b;
       --accent: #38bdf8;
       --success: #22c55e;
+      --text-muted: #94a3b8;
     }
 
     body {
-      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      font-family: 'Segoe UI', sans-serif;
       background: var(--bg);
       color: white;
       margin: 0;
@@ -24,7 +35,6 @@
       align-items: center;
     }
 
-    /* Scanner Styling */
     #reader {
       width: 100%;
       max-width: 400px;
@@ -34,9 +44,8 @@
       margin-bottom: 20px;
     }
 
-    /* Results Card */
     #details-card {
-      display: none; /* Hidden until scan */
+      display: none;
       background: var(--card);
       width: 100%;
       max-width: 400px;
@@ -44,6 +53,7 @@
       padding: 20px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.3);
       animation: fadeIn 0.5s ease;
+      margin-bottom: 100px;
     }
 
     .row {
@@ -54,18 +64,17 @@
       padding-bottom: 8px;
     }
 
-    .label { color: #94a3b8; font-size: 0.85rem; text-transform: uppercase; }
+    .label { color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; }
     .val { font-weight: 600; font-size: 0.95rem; }
 
     .status-badge {
       background: var(--success);
-      color: white;
       padding: 4px 12px;
       border-radius: 20px;
       font-size: 0.8rem;
     }
 
-    /* Sliding Window (Bottom Sheet) */
+    /* Sliding Window */
     #bottom-sheet {
       position: fixed;
       bottom: -100%;
@@ -77,11 +86,24 @@
       text-align: center;
       border-top-left-radius: 24px;
       border-top-right-radius: 24px;
-      transition: bottom 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      transition: bottom 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       z-index: 100;
+      box-shadow: 0 -10px 20px rgba(0,0,0,0.2);
     }
 
     #bottom-sheet.active { bottom: 0; }
+
+    .btn-next {
+      background: white;
+      color: var(--success);
+      border: none;
+      padding: 12px 30px;
+      border-radius: 8px;
+      font-weight: bold;
+      margin-top: 15px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
 
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
@@ -91,79 +113,101 @@
 </head>
 <body>
 
-  <h2 style="margin-bottom: 10px;">📦 Product Scanner</h2>
-  <p style="color: #94a3b8; margin-bottom: 20px;">Align QR code within the frame</p>
+  <h2>📦 Product Scanner</h2>
+  <p style="color: var(--text-muted); margin-top: -10px;">Vector Logistics Terminal</p>
 
   <div id="reader"></div>
 
   <div id="details-card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-      <h3 style="margin: 0;">Return Details</h3>
+      <h3 style="margin: 0;">Scan Results</h3>
       <span class="status-badge" id="res-status"></span>
     </div>
 
-    <div class="row">
-      <span class="label">Return ID</span>
-      <span class="val" id="res-id"></span>
-    </div>
-    <div class="row">
-      <span class="label">Method</span>
-      <span class="val" id="res-method"></span>
-    </div>
-    <div class="row">
-      <span class="label">Approved By</span>
-      <span class="val" id="res-admin"></span>
-    </div>
-    <div class="row" style="border: none;">
-      <span class="label">Date</span>
-      <span class="val" id="res-date"></span>
-    </div>
+    <div class="row"><span class="label">Return ID</span><span class="val" id="res-id"></span></div>
+    <div class="row"><span class="label">User ID</span><span class="val" id="res-userid"></span></div>
+    <div class="row"><span class="label">Method</span><span class="val" id="res-method"></span></div>
+    <div class="row"><span class="label">Approved By</span><span class="val" id="res-admin"></span></div>
+    <div class="row" style="border: none;"><span class="label">Scanned At</span><span class="val" id="res-date"></span></div>
+    
+    <p id="email-status" style="font-size: 0.8rem; color: var(--accent); margin-top: 15px; font-style: italic;">
+      Sending email notification...
+    </p>
   </div>
 
   <div id="bottom-sheet">
-    <div style="font-size: 2rem; margin-bottom: 10px;">✅</div>
+    <div style="font-size: 2.5rem; margin-bottom: 10px;">✅</div>
     <h2 style="margin: 0;">Order Picked Up</h2>
-    <p>The return record has been updated successfully.</p>
-    <button onclick="resetScanner()" style="background: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; margin-top: 10px; cursor: pointer;">Scan Next</button>
+    <p id="sheet-msg">Email notification sent to administration.</p>
+    <button class="btn-next" onclick="resetScanner()">Scan Next Item</button>
   </div>
 
   <script>
-    function onScanSuccess(decodedText) {
-      try {
-        const data = JSON.parse(decodedText);
-        
-        // Stop scanner to focus on UI
-        html5QrCode.stop();
-
-        // Populate UI
-        document.getElementById("res-id").innerText = data.returnId.substring(0, 12) + "...";
-        document.getElementById("res-status").innerText = data.status.toUpperCase();
-        document.getElementById("res-method").innerText = data.returnMethod;
-        document.getElementById("res-admin").innerText = data.approvedBy;
-        document.getElementById("res-date").innerText = new Date(data.approvedAt).toLocaleDateString();
-
-        // Show card and slide-up window
-        document.getElementById("details-card").style.display = "block";
-        setTimeout(() => {
-          document.getElementById("bottom-sheet").classList.add("active");
-        }, 500);
-
-      } catch (err) {
-        console.error("Not a valid JSON QR", err);
-      }
-    }
-
     const html5QrCode = new Html5Qrcode("reader");
     const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-    function startScanner() {
-        html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess);
+    async function onScanSuccess(decodedText) {
+      try {
+        const data = JSON.parse(decodedText);
+        html5QrCode.stop(); // Stop camera for better performance
+
+        // 1. Update UI Card
+        document.getElementById("res-id").innerText = data.returnId;
+        document.getElementById("res-userid").innerText = data.userId;
+        document.getElementById("res-status").innerText = data.status.toUpperCase();
+        document.getElementById("res-method").innerText = data.returnMethod;
+        document.getElementById("res-admin").innerText = data.approvedBy;
+        document.getElementById("res-date").innerText = new Date().toLocaleString();
+        document.getElementById("details-card").style.display = "block";
+
+        // 2. Trigger EmailJS
+        sendEmail(data);
+
+      } catch (err) {
+        console.error("QR doesn't match expected JSON format.");
+      }
+    }
+
+    function sendEmail(data) {
+      const serviceID = "service_u6ojafw"; 
+      const templateID = "YOUR_TEMPLATE_ID"; // Replace with your Template ID
+
+      const templateParams = {
+        return_id: data.returnId,
+        user_id: data.userId,
+        status: data.status,
+        method: data.returnMethod,
+        approved_by: data.approvedBy,
+        scan_time: new Date().toLocaleString()
+      };
+
+      emailjs.send(serviceID, templateID, templateParams)
+        .then(() => {
+          document.getElementById("email-status").innerText = "✔ Notification sent via Gmail";
+          showSlider();
+        })
+        .catch((error) => {
+          document.getElementById("email-status").innerText = "✖ Email failed to send";
+          document.getElementById("sheet-msg").innerText = "Data saved locally, but email failed.";
+          showSlider();
+        });
+    }
+
+    function showSlider() {
+      setTimeout(() => {
+        document.getElementById("bottom-sheet").classList.add("active");
+      }, 400);
     }
 
     function resetScanner() {
-        document.getElementById("bottom-sheet").classList.remove("active");
-        document.getElementById("details-card").style.display = "none";
-        startScanner();
+      document.getElementById("bottom-sheet").classList.remove("active");
+      document.getElementById("details-card").style.display = "none";
+      document.getElementById("email-status").innerText = "Sending email notification...";
+      startScanner();
+    }
+
+    function startScanner() {
+      html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess);
     }
 
     startScanner();
